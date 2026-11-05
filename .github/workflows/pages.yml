@@ -1,0 +1,72 @@
+name: Build and deploy portfolio
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '7,22,37,52 * * * *'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: portfolio-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/cache/restore@v4
+        with:
+          path: .capture-cache/deployed.json
+          key: pages-capture-state-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: pages-capture-state-
+      - name: Check published capture versions
+        id: captures
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          FORCE_BUILD: ${{ github.event_name != 'schedule' }}
+        run: python3 scripts/sync-screenshots.py --check
+      - uses: actions/setup-node@v6
+        if: steps.captures.outputs.build_required == 'true'
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install, import screenshots, and build static site
+        if: steps.captures.outputs.build_required == 'true'
+        run: |
+          npm ci
+          python3 scripts/sync-screenshots.py --plan .capture-cache/plan.json
+          npm run build
+      - name: Validate static portfolio
+        if: steps.captures.outputs.build_required == 'true'
+        run: |
+          npm run test:sync
+          npx --no-install playwright install --with-deps chromium
+          npm test
+      - uses: actions/configure-pages@v5
+        if: steps.captures.outputs.build_required == 'true'
+      - uses: actions/upload-pages-artifact@v3
+        if: steps.captures.outputs.build_required == 'true'
+        with:
+          path: dist
+      - uses: actions/deploy-pages@v4
+        if: steps.captures.outputs.build_required == 'true'
+        id: deployment
+      - name: Remember successfully deployed captures
+        if: steps.captures.outputs.build_required == 'true'
+        run: cp data/capture-state.json .capture-cache/deployed.json
+      - uses: actions/cache/save@v4
+        if: steps.captures.outputs.build_required == 'true'
+        with:
+          path: .capture-cache/deployed.json
+          key: pages-capture-state-${{ github.run_id }}-${{ github.run_attempt }}

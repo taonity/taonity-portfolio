@@ -1,0 +1,19 @@
+[
+  {
+    "id": "sinair-llm-bot",
+    "title": "Yarik LLM Bot",
+    "category": "Applications",
+    "description": "Your group chat hits a question nobody can settle. Copying the conversation into a separate LLM chat breaks the flow. Yarik brings an LLM into the group as a chat member, so you can ask, argue, and work things out together, right where the conversation is happening.",
+    "liveUrl": "https://sinair-llm-bot.taonity.org/",
+    "availability": "Yarik is in closed testing. The bot is publicly accessible, but I’m keeping the test chat link off the portfolio for now. Integrations with popular chat platforms are planned.",
+    "tags": ["Kotlin", "Spring Boot", "TypeScript", "Next.js", "PostgreSQL"],
+    "cover": { "format": "phone", "scene": "outbound" },
+    "language": "Kotlin / TypeScript",
+    "repository": "https://github.com/taonity/sinair-llm-bot",
+    "captures": {
+      "repository": "taonity/sinair-llm-bot",
+      "releasePrefix": "portfolio-screenshots-",
+      "asset": "screenshots.zip"
+    }
+  }
+]

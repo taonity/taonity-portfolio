@@ -1,0 +1,11 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+.sites-runtime/
+.env
+/assets/projects/
+/data/screenshots/
+/data/capture-state.json
+/.capture-cache/
+__pycache__/

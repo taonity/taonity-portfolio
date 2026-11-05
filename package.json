@@ -1,0 +1,21 @@
+{
+  "name": "taonity-portfolio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/serve.mjs",
+    "build": "node scripts/build.mjs",
+    "import:screenshots": "node scripts/import-screenshots.mjs",
+    "sync:screenshots": "python3 scripts/sync-screenshots.py",
+    "test:sync": "python3 -m unittest discover -s tests -p '*_test.py'",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "sharp": "0.35.5"
+  },
+  "dependencies": {
+    "@splidejs/splide": "4.1.4"
+  }
+}
