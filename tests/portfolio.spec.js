@@ -89,20 +89,21 @@ test("project index links to a separate project page with complete titles", asyn
   await expect(
     page.getByRole("heading", { name: "Projects", exact: true }),
   ).toBeVisible();
-  await expect(page.locator(".project-card")).toHaveCount(1);
-  const card = await page.locator(".project-card").boundingBox();
+  await expect(page.locator(".project-card")).toHaveCount(2);
+  const yarikCard = page.locator(".project-card").filter({ has: page.getByRole("heading", { name: "Yarik LLM Bot", exact: true }) });
+  const card = await yarikCard.boundingBox();
   expect(card.width).toBeLessThanOrEqual(400);
   expect(card.height).toBeLessThan(650);
   await expect(page.locator(".device-view")).toHaveCount(0);
   await expect(
     page.getByRole("heading", { name: "Yarik LLM Bot", exact: true }),
   ).toBeVisible();
-  const description = await page.locator(".project-card-content p").textContent();
-  const tags = await page.locator(".technology-list li").allTextContents();
+  const description = await yarikCard.locator(".project-card-content p").textContent();
+  const tags = await yarikCard.locator(".technology-list li").allTextContents();
   expect(description).toMatch(/^Your group chat hits a question nobody can settle/);
   expect(description).not.toMatch(/assistant|room summaries|tool calls|request\/response|—/i);
   expect(tags.length).toBeGreaterThan(0);
-  const cover = page.locator(".project-cover img");
+  const cover = yarikCard.locator(".project-cover img");
   await expect(cover).toHaveAttribute("src", /\/phone\/outbound\.png$/);
   await readyImages(page);
   expect(await cover.evaluate((image) => image.naturalWidth)).toBe(1560);
@@ -113,7 +114,7 @@ test("project index links to a separate project page with complete titles", asyn
     new RegExp("/" + (coverTheme === "dark" ? "light" : "dark") + "/phone/outbound\\.png$"),
   );
   await page.locator("#theme-toggle").click();
-  await page.locator(".project-card-link").click();
+  await yarikCard.locator(".project-card-link").click();
   await expect(page).toHaveURL(new RegExp(projectPath + "$"));
   await expect(
     page.getByRole("heading", { name: "Yarik LLM Bot", level: 1 }),
@@ -138,6 +139,36 @@ test("project index links to a separate project page with complete titles", asyn
   await expect(
     page.getByRole("heading", { name: "Projects", exact: true }),
   ).toBeVisible();
+});
+
+test("Fullstack Starter has its own screenshots and consistent project details", async ({ page }) => {
+  await page.goto("/");
+  const card = page.locator(".project-card").filter({ has: page.getByRole("heading", { name: "Fullstack Starter", exact: true }) });
+  await expect(card).toBeVisible();
+  const description = await card.locator(".project-card-content p").textContent();
+  const tags = await card.locator(".technology-list li").allTextContents();
+  await expect(card.locator("img")).toHaveAttribute("src", /fullstack-starter\/.*\/phone\/admin\.png$/);
+  await card.locator("a").click();
+  await expect(page).toHaveURL(/\/projects\/fullstack-starter\/$/);
+  await expect(page.locator("#project-views")).toHaveAttribute("aria-busy", "false");
+  await expect(page.getByRole("heading", { name: "Fullstack Starter", level: 1 })).toBeVisible();
+  await expect(page.locator("#project-description")).toHaveText(description);
+  expect(await page.locator(".technology-list li").allTextContents()).toEqual(tags);
+  await expect(page.locator(".scene-button")).toHaveCount(6);
+  await expectBothScenes(page, "admin");
+  await page.getByRole("button", { name: "Next view", exact: true }).click();
+  await expectBothScenes(page, "config");
+  await chooseScene(page, "request-access");
+  await expectBothScenes(page, "request-access");
+  await page.locator(".phone-scroll").click({ position: { x: 30, y: 30 } });
+  await expect(page.locator("#expanded-view")).toBeVisible();
+  await expect(page.locator("#expanded-image")).toHaveAttribute("src", /fullstack-starter\/.*\/phone\/request-access\.png$/);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#expanded-view")).not.toBeVisible();
+  await readyImages(page);
+  const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight, content: document.documentElement.scrollWidth, navigation: document.querySelector(".gallery-navigation").getBoundingClientRect().bottom }));
+  expect(viewport.content).toBeLessThanOrEqual(viewport.width);
+  expect(viewport.navigation).toBeLessThanOrEqual(viewport.height + 1);
 });
 
 test("both devices and text navigation fit the viewport with sharp images", async ({
@@ -510,7 +541,7 @@ test("both static pages work under a hosting subdirectory without API requests",
   await expect(
     page.getByRole("heading", { name: "Projects", exact: true }),
   ).toBeVisible();
-  await page.locator(".project-card-link").click();
+  await page.locator('.project-card-link[href$="projects/sinair-llm-bot/"]').click();
   await expect(page).toHaveURL(/\/dist\/projects\/sinair-llm-bot\/$/);
   await expect(page.locator(".device-view")).toHaveCount(2);
   await readyImages(page);

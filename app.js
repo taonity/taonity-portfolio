@@ -772,7 +772,7 @@ function showIndex(projects) {
     const coverContent = element("div", "project-cover-content");
     const image = element("img");
     image.src = coverSource(project);
-    image.alt = project.title + " group-chat replies on mobile";
+    image.alt = project.title + ", " + project.cover.format + " screenshot";
     image.loading = "eager";
     coverContent.append(image);
     coverScreen.append(coverContent);

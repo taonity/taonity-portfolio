@@ -17,7 +17,9 @@ const manifest = JSON.parse(
 );
 if (manifest.status !== "passed" || !manifest.images?.length)
   throw new Error("Only successful, nonempty screenshot captures can be imported");
-const order = [
+const projects = JSON.parse(await readFile(path.join(root, "data/projects.json"), "utf8"));
+const projectConfig = projects.find((entry) => entry.id === project);
+const order = projectConfig?.sceneOrder || [
   "messages",
   "pipelines",
   "pipeline-details",
@@ -35,6 +37,7 @@ const labels = {
   "config-persona": "Persona",
   "llm-payloads": "LLM JSON",
   config: "Configuration",
+  ...projectConfig?.sceneLabels,
 };
 const screens = {
   project,

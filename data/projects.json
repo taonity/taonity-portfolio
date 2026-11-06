@@ -15,5 +15,24 @@
       "releasePrefix": "portfolio-screenshots-",
       "asset": "screenshots.zip"
     }
+  },
+  {
+    "id": "fullstack-starter",
+    "title": "Fullstack Starter",
+    "category": "Developer tools",
+    "description": "Every new web app needs sign-in, access control, and a place to manage it. Fullstack Starter puts those pieces in a Kotlin and Next.js template, so you can start building your actual idea instead of setting them up again.",
+    "liveUrl": "https://fullstack-starter.taonity.org/",
+    "availability": "The live site shows the sign-in flow. Console access requires approval; the screenshots show the included admin tools.",
+    "tags": ["Kotlin", "Spring Boot", "TypeScript", "Next.js", "PostgreSQL"],
+    "cover": { "format": "phone", "scene": "admin" },
+    "sceneOrder": ["admin", "config", "about", "login", "request-access", "access-pending"],
+    "sceneLabels": { "login": "Sign in", "request-access": "Request access", "access-pending": "Access pending" },
+    "language": "Kotlin / TypeScript",
+    "repository": "https://github.com/taonity/fullstack-starter",
+    "captures": {
+      "repository": "taonity/fullstack-starter",
+      "releasePrefix": "portfolio-screenshots-",
+      "asset": "screenshots.zip"
+    }
   }
 ]
