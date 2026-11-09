@@ -208,6 +208,13 @@ function displayPreview(device, image, scene, format, animate, resetScroll) {
   } else if (oldImage !== image) oldImage.remove();
   image.style.position = "";
   image.style.top = "";
+  const size = logicalSize(scene);
+  const viewport = state.screenshots.viewports[format];
+  const fitsViewport =
+    format === "desktop" &&
+    size.height * viewport.width <= viewport.height * size.width;
+  image.classList.toggle("fits-viewport", fitsViewport);
+  device.scroll.classList.toggle("fits-viewport", fitsViewport);
   image.alt =
     state.project.title + " — " + scene.label + ", " + format + " view";
   if (image.parentElement !== device.scroll) device.scroll.append(image);
@@ -471,7 +478,7 @@ async function updateExpanded() {
   );
   const height = Math.min(
     innerHeight * 0.82,
-    (width * scene.height) / scene.width,
+    Math.ceil((width * scene.height) / scene.width),
   );
   image.alt =
     state.project.title + " — " + scene.label + ", " + format + " view";

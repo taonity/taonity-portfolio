@@ -493,6 +493,74 @@ test("desktop height stays constant across every scene and shorter windows", asy
   }
 });
 
+test("Fullstack configuration stays scrollbar-free through fractional resizing", async ({ page }, testInfo) => {
+  test.skip(!testInfo.project.name.startsWith("desktop"), "Desktop screenshot sizing");
+  await page.setViewportSize({ width: 2000, height: 1300 });
+  await page.goto("/projects/fullstack-starter/#config");
+  await expect(page.locator("#project-views")).toHaveAttribute("aria-busy", "false");
+  await readyImages(page);
+  const scroll = page.locator(".desktop-scroll");
+  for (const zoom of [0.8, 1, 1.1, 1.25, 1.5]) {
+    const style = await page.addStyleTag({ content: `.desktop-scroll { zoom: ${zoom} }` });
+    for (const width of [1900, 1919, 1938, 1957, 1976, 2014, 2052, 2238, 2560]) {
+      await page.setViewportSize({ width, height: 1300 });
+      await expect.poll(() => scroll.evaluate(node => node.scrollHeight - node.clientHeight)).toBe(0);
+      expect(await scroll.evaluate(node => node.scrollWidth - node.clientWidth)).toBe(0);
+      expect(await scroll.evaluate(node => getComputedStyle(node).overflowY)).toBe("hidden");
+      await expect(scroll.locator("img")).toHaveCSS("object-fit", "contain");
+    }
+    await style.evaluate(node => node.remove());
+  }
+  await chooseScene(page, "admin");
+  await expect(scroll).toHaveCSS("overflow-y", "auto");
+  expect(await scroll.evaluate(node => node.scrollHeight)).toBeGreaterThan(await scroll.evaluate(node => node.clientHeight));
+  const width = await scroll.evaluate(node => node.clientWidth);
+  await chooseScene(page, "config");
+  await expect(scroll).toHaveCSS("overflow-y", "hidden");
+  expect(await scroll.evaluate(node => node.clientWidth)).toBe(width);
+});
+
+test("project previews fill large screens without scrolling images that fit", async ({ page, baseURL }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-light", "Shared viewport and display-scale checks");
+  test.setTimeout(60_000);
+  for (const deviceScaleFactor of [1, 1.25, 1.5, 2]) {
+    for (const colorScheme of ["light", "dark"]) {
+      const context = await page.context().browser().newContext({ baseURL, deviceScaleFactor, colorScheme, reducedMotion: "reduce" });
+      const preview = await context.newPage();
+      try {
+        let fullHdWidth;
+        for (const viewport of [{ width: 1920, height: 1080 }, { width: 2560, height: 1440 }]) {
+          await preview.setViewportSize(viewport);
+          await preview.goto("/projects/sinair-llm-bot/#about");
+          await expect(preview.locator("#project-views")).toHaveAttribute("aria-busy", "false");
+          await readyImages(preview);
+          await expect.poll(() => preview.locator(".project-layout").evaluate(node => node.getBoundingClientRect().width)).toBe(viewport.width);
+          const width = await preview.locator(".desktop-view").evaluate(node => node.getBoundingClientRect().width);
+          if (fullHdWidth) expect(width).toBeGreaterThan(fullHdWidth * 1.25);
+          else fullHdWidth = width;
+          for (const format of ["desktop", "phone"]) {
+            const scroll = preview.locator("." + format + "-scroll");
+            await expect.poll(() => scroll.evaluate(node => node.scrollWidth - node.clientWidth)).toBe(0);
+            await expect.poll(() => scroll.evaluate(node => node.scrollHeight - node.clientHeight)).toBe(0);
+            await expect.poll(() => scroll.locator("img").evaluate(image => image.naturalWidth >= Math.ceil(image.getBoundingClientRect().width * devicePixelRatio))).toBe(true);
+            await scroll.click({ position: { x: 20, y: 20 } });
+            await expect(preview.locator("#expanded-view")).toBeVisible();
+            const region = preview.locator(".expanded-image-region");
+            expect(await region.evaluate(node => node.scrollWidth - node.clientWidth)).toBe(0);
+            const imageHeight = await region.locator("img").evaluate(image => image.getBoundingClientRect().height);
+            if (imageHeight <= viewport.height * 0.82) {
+              expect(await region.evaluate(node => node.scrollHeight - node.clientHeight)).toBe(0);
+            }
+            await preview.keyboard.press("Escape");
+          }
+        }
+      } finally {
+        await context.close();
+      }
+    }
+  }
+});
+
 test("slideshow crossfades both devices, pauses during inspection, and can be stopped", async ({
   page,
 }, testInfo) => {
