@@ -701,7 +701,11 @@ function sizeDevices() {
         (availableHeight - phoneChrome) * phoneRatio + horizontal,
       ),
     );
-    desktopWidth = availableWidth - phoneWidth - gap;
+    desktopWidth = Math.min(
+      availableWidth - phoneWidth - gap,
+      desktopHorizontal +
+        Math.max(0, availableHeight - desktopChrome) * desktopRatio,
+    );
   } else {
     const widthLimitedHeight =
       (availableWidth -

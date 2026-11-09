@@ -34,5 +34,48 @@
       "releasePrefix": "portfolio-screenshots-",
       "asset": "screenshots.zip"
     }
+  },
+  {
+    "id": "gentool-data-viewer",
+    "title": "GenTool Data Viewer",
+    "category": "Gaming tools",
+    "description": "Looking for a Zero Hour replay or trying to figure out who a player is behind another nickname? GenTool Data Viewer brings replay history, player aliases, linked Discord accounts, and reported hardware into one searchable place, so you can find the match and the people you played with.",
+    "liveUrl": "https://gentool-data-viewer.taonity.org/",
+    "availability": "Browse player and replay data on the live site. Discord sign-in enables player linking and rescan requests. These screenshots use fictional data.",
+    "tags": [
+      "Kotlin",
+      "Spring Boot",
+      "TypeScript",
+      "Next.js",
+      "PostgreSQL"
+    ],
+    "cover": {
+      "format": "phone",
+      "scene": "players"
+    },
+    "sceneOrder": [
+      "players",
+      "replays",
+      "replay-details",
+      "gentool",
+      "collection",
+      "config",
+      "admin",
+      "about"
+    ],
+    "sceneLabels": {
+      "players": "Players",
+      "replays": "Replays",
+      "replay-details": "Replay details",
+      "gentool": "My GenTool",
+      "collection": "Collection"
+    },
+    "language": "Kotlin / TypeScript",
+    "repository": "https://github.com/taonity/gentool-data-viewer",
+    "captures": {
+      "repository": "taonity/gentool-data-viewer",
+      "releasePrefix": "portfolio-screenshots-",
+      "asset": "screenshots.zip"
+    }
   }
 ]

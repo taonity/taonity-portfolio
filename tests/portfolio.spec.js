@@ -2,6 +2,33 @@ import { expect, test } from "@playwright/test";
 
 const projectPath = "/projects/sinair-llm-bot/";
 
+test("GenTool has a project page with synchronized, scrollable screenshot views", async ({ page }) => {
+  await page.goto("/");
+  const card = page.locator(".project-card").filter({ has: page.getByRole("heading", { name: "GenTool Data Viewer", exact: true }) });
+  const description = await card.locator(".project-card-content p").textContent();
+  const tags = await card.locator(".technology-list li").allTextContents();
+  await expect(card.locator(".project-cover img")).toHaveAttribute("src", /\/phone\/players\.png$/);
+  await card.locator(".project-card-link").click();
+  await expect(page.locator("#project-views")).toHaveAttribute("aria-busy", "false");
+  await expect(page.locator("#project-title")).toHaveText("GenTool Data Viewer");
+  await expect(page.locator("#project-description")).toHaveText(description);
+  await expect(page.locator(".technology-list li")).toHaveText(tags);
+  await expect(page.locator("#project-live")).toHaveAttribute("href", "https://gentool-data-viewer.taonity.org/");
+  await expect(page.locator(".scene-button")).toHaveCount(8);
+  await expectBothScenes(page, "players");
+  await chooseScene(page, "replay-details");
+  await expectBothScenes(page, "replay-details");
+  await page.locator(".phone-scroll").click({ position: { x: 20, y: 20 } });
+  await expect(page.locator("#expanded-view")).toBeVisible();
+  const region = page.locator(".expanded-image-region");
+  expect(await region.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#expanded-view")).toBeHidden();
+  await page.setViewportSize({ width: 320, height: 568 });
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(568);
+});
+
 async function openProject(page) {
   await page.goto(projectPath);
   await expect(page.locator(".device-view")).toHaveCount(2);
@@ -89,7 +116,7 @@ test("project index links to a separate project page with complete titles", asyn
   await expect(
     page.getByRole("heading", { name: "Projects", exact: true }),
   ).toBeVisible();
-  await expect(page.locator(".project-card")).toHaveCount(2);
+  await expect(page.locator(".project-card")).toHaveCount(3);
   const yarikCard = page.locator(".project-card").filter({ has: page.getByRole("heading", { name: "Yarik LLM Bot", exact: true }) });
   const card = await yarikCard.boundingBox();
   expect(card.width).toBeLessThanOrEqual(400);
