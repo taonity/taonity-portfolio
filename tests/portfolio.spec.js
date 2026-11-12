@@ -535,9 +535,9 @@ test("project previews fill large screens without scrolling images that fit", as
           await expect(preview.locator("#project-views")).toHaveAttribute("aria-busy", "false");
           await readyImages(preview);
           await expect.poll(() => preview.locator(".project-layout").evaluate(node => node.getBoundingClientRect().width)).toBe(viewport.width);
-          const width = await preview.locator(".desktop-view").evaluate(node => node.getBoundingClientRect().width);
-          if (fullHdWidth) expect(width).toBeGreaterThan(fullHdWidth * 1.25);
-          else fullHdWidth = width;
+          const desktopWidth = () => preview.locator(".desktop-view").evaluate(node => node.getBoundingClientRect().width);
+          if (fullHdWidth) await expect.poll(desktopWidth).toBeGreaterThan(fullHdWidth * 1.25);
+          else fullHdWidth = await desktopWidth();
           for (const format of ["desktop", "phone"]) {
             const scroll = preview.locator("." + format + "-scroll");
             await expect.poll(() => scroll.evaluate(node => node.scrollWidth - node.clientWidth)).toBe(0);

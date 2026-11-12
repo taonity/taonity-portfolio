@@ -39,7 +39,7 @@
     "id": "gentool-data-viewer",
     "title": "GenTool Data Viewer",
     "category": "Gaming tools",
-    "description": "Looking for a Zero Hour replay or trying to figure out who a player is behind another nickname? GenTool Data Viewer brings replay history, player aliases, linked Discord accounts, and reported hardware into one searchable place, so you can find the match and the people you played with.",
+    "description": "Find a Zero Hour replay without digging through GenTool folders. Search and sort matches, jump from a player to their replay history, and open replay files in a few clicks. Player aliases and linked Discord accounts help identify opponents, while sortable stats and CPU benchmark scores help you spot weaker hardware before a match and avoid slow games.",
     "liveUrl": "https://gentool-data-viewer.taonity.org/",
     "availability": "Browse player and replay data on the live site. Discord sign-in enables player linking and rescan requests. These screenshots use fictional data.",
     "tags": [
