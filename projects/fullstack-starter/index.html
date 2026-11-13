@@ -138,16 +138,19 @@
     <dialog
       class="expanded-view"
       id="expanded-view"
-      aria-label="Expanded screenshot"
+      aria-labelledby="expanded-context expanded-title"
     >
-      <div
-        class="expanded-image-region"
-        tabindex="0"
-        role="region"
-        aria-label="Expanded screenshot"
-      >
-        <img id="expanded-image" alt="" draggable="false" />
-      </div>
+      <header class="expanded-header">
+        <div class="expanded-heading">
+          <p id="expanded-context" class="expanded-context"></p>
+          <h2 id="expanded-title"></h2>
+        </div>
+        <button type="button" class="expanded-close" id="close-expanded" aria-label="Close expanded view">
+          <span>Close</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
+        </button>
+      </header>
+      <div class="expanded-stage"></div>
     </dialog>
   </body>
 </html>

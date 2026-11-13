@@ -21,6 +21,7 @@ const state = {
   expandedFormat: null,
   expandedRevision: 0,
   expandedImages: new Map(),
+  projectWarmups: new Map(),
 };
 
 const slideInterval = 8000;
@@ -116,8 +117,12 @@ function previewSource(scene, format) {
   );
 }
 
-function preparePreview(scene, format, priority = "high") {
-  const source = previewSource(scene, format);
+function preparePreview(
+  scene,
+  format,
+  priority = "high",
+  source = previewSource(scene, format),
+) {
   const existing = state.previews.get(source.src);
   if (existing) {
     if (priority === "high") existing.image.fetchPriority = "high";
@@ -219,6 +224,14 @@ function displayPreview(device, image, scene, format, animate, resetScroll) {
     state.project.title + " — " + scene.label + ", " + format + " view";
   if (image.parentElement !== device.scroll) device.scroll.append(image);
   device.image = image;
+  if (!device.root.classList.contains("preview-ready")) {
+    device.root.classList.add("preview-ready");
+    if (!matchMedia("(prefers-reduced-motion: reduce)").matches)
+      image.animate([{ opacity: 0 }, { opacity: 1 }], {
+        duration: 160,
+        easing: "ease-out",
+      });
+  }
   device.root.dataset.scene = scene.id;
   device.scroll.scrollTop = resetScroll ? 0 : scrollTop;
   if (outgoing) {
@@ -242,11 +255,7 @@ function displayPreview(device, image, scene, format, animate, resetScroll) {
   }
 }
 
-function makeDevice(format) {
-  const name = format === "desktop" ? "Desktop" : "Phone";
-  const root = element("section", "device-view " + format + "-view");
-  root.dataset.format = format;
-  root.setAttribute("aria-label", name + " preview");
+function makeDeviceShell(format) {
   const shell = element(
     "div",
     format === "desktop" ? "browser-shell" : "phone-shell",
@@ -267,6 +276,15 @@ function makeDevice(format) {
     screen.append(status);
     shell.append(screen);
   }
+  return { shell, screen };
+}
+
+function makeDevice(format) {
+  const name = format === "desktop" ? "Desktop" : "Phone";
+  const root = element("section", "device-view " + format + "-view");
+  root.dataset.format = format;
+  root.setAttribute("aria-label", name + " preview");
+  const { shell, screen } = makeDeviceShell(format);
   const scroll = element("div", "device-scroll " + format + "-scroll");
   scroll.tabIndex = 0;
   scroll.setAttribute("role", "button");
@@ -336,9 +354,31 @@ async function selectScene(id, updateUrl = true, options = {}) {
     scene: scenes(format).find((item) => item.id === selected.id),
   }));
   let images;
+  let firstImages;
   try {
+    // Put a small, decoded pair on screen while the sharper previews load.
+    // Later scene changes keep their existing synchronized transition.
+    if (!state.initialized) {
+      firstImages = await Promise.all(
+        pending.map(({ scene, format }) =>
+          preparePreview(scene, format, "high", scene.previews?.[0] || scene)
+            .catch(() => preparePreview(scene, format)),
+        ),
+      );
+      if (revision !== state.revision) return;
+      pending.forEach(({ scene, format }, index) =>
+        displayPreview(
+          state.devices.get(format), firstImages[index], scene, format, false, true,
+        ),
+      );
+    }
     images = await Promise.all(
-      pending.map(({ scene, format }) => preparePreview(scene, format)),
+      pending.map(({ scene, format }, index) =>
+        preparePreview(scene, format).catch((error) => {
+          if (firstImages) return firstImages[index];
+          throw error;
+        }),
+      ),
     );
   } catch {
     if (revision === state.revision) {
@@ -468,17 +508,23 @@ async function updateExpanded() {
     return;
   }
   const dialog = document.querySelector("#expanded-view");
-  const region = document.querySelector(".expanded-image-region");
+  const stage = dialog.querySelector(".expanded-stage");
+  let region = stage.querySelector(".expanded-image-region");
+  if (!region) {
+    region = element("div", "expanded-image-region");
+    region.tabIndex = 0;
+    region.setAttribute("role", "region");
+    region.setAttribute("aria-label", "Screenshot content. Scroll to see the full page.");
+    stage.replaceChildren(region);
+  }
+  // Expand for reading: viewport height limits scrolling, never image width.
   const width = Math.floor(
     Math.min(
-      innerWidth * 0.82,
-      format === "phone" ? 460 : 1280,
+      innerWidth * 0.94 - 2,
+      innerWidth - 70, // 8px margins, a 44px side rail, an 8px gap, and borders.
+      format === "phone" ? 560 : 1280,
       scene.width / devicePixelRatio,
     ),
-  );
-  const height = Math.min(
-    innerHeight * 0.82,
-    Math.ceil((width * scene.height) / scene.width),
   );
   image.alt =
     state.project.title + " — " + scene.label + ", " + format + " view";
@@ -487,21 +533,29 @@ async function updateExpanded() {
     region.replaceChildren(image);
     region.scrollTop = 0;
   }
-  dialog.style.width = width + "px";
-  dialog.style.height = height + "px";
+  dialog.style.width = width + 2 + "px";
   dialog.dataset.format = format;
   dialog.dataset.scene = scene.id;
-  dialog.setAttribute("aria-label", image.alt);
-  if (!dialog.open) dialog.showModal();
+  dialog.querySelector("#expanded-title").textContent = scene.label;
+  const index = scenes(format).findIndex((item) => item.id === scene.id);
+  dialog.querySelector("#expanded-context").textContent =
+    state.project.title + " · " + (format === "phone" ? "Phone" : "Desktop") +
+    " · " + (index + 1) + " / " + scenes(format).length;
+  if (!dialog.open) {
+    dialog.showModal();
+    dialog.querySelector("#close-expanded").focus({ preventScroll: true });
+  }
   pruneExpandedImages();
 }
 
 function closeExpanded() {
+  const format = state.expandedFormat;
   state.expandedRevision++;
   state.expandedFormat = null;
   const dialog = document.querySelector("#expanded-view");
   if (dialog.open) dialog.close();
-  document.querySelector(".expanded-image-region").replaceChildren();
+  document.querySelector(".expanded-stage").replaceChildren();
+  if (format) state.devices.get(format).scroll.focus({ preventScroll: true });
   holdSlide("expanded", false);
   pruneExpandedImages();
 }
@@ -600,7 +654,9 @@ function showProject(project, screenshotData) {
     .querySelector(".gallery-navigation")
     .addEventListener("keydown", navigateKeys);
   const dialog = document.querySelector("#expanded-view");
+  dialog.querySelector("#close-expanded").addEventListener("click", closeExpanded);
   dialog.addEventListener("click", (event) => {
+    if (!dialog.open) return;
     const bounds = dialog.getBoundingClientRect();
     if (
       event.clientX < bounds.left ||
@@ -611,6 +667,18 @@ function showProject(project, screenshotData) {
       closeExpanded();
   });
   dialog.addEventListener("keydown", navigateKeys);
+  dialog.addEventListener("keydown", (event) => {
+    if (event.key !== "Tab") return;
+    const close = dialog.querySelector("#close-expanded");
+    const content = dialog.querySelector(".expanded-image-region");
+    if (event.shiftKey && document.activeElement === close) {
+      event.preventDefault();
+      content.focus({ preventScroll: true });
+    } else if (!event.shiftKey && document.activeElement === content) {
+      event.preventDefault();
+      close.focus({ preventScroll: true });
+    }
+  });
   dialog.addEventListener("cancel", (event) => {
     event.preventDefault();
     closeExpanded();
@@ -773,18 +841,59 @@ function coverSource(project) {
   );
 }
 
+function warmProject(project) {
+  const connection = navigator.connection;
+  if (connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType || "")) return;
+  const selectedTheme = theme();
+  const key = project.id + "/" + selectedTheme;
+  if (state.projectWarmups.has(key)) return;
+  const promise = loadJson("data/screenshots/" + project.id + ".json")
+    .then((data) => Promise.all(["desktop", "phone"].map((format) => {
+      const scene = data.scenes[selectedTheme][format][0];
+      const source = scene.previews?.[0] || scene;
+      const image = new Image();
+      image.fetchPriority = "low";
+      image.decoding = "async";
+      image.src = asset(source.src);
+      return image.decode().then(() => image);
+    })))
+    .catch(() => state.projectWarmups.delete(key));
+  state.projectWarmups.set(key, promise);
+}
+
+async function loadCover(card) {
+  const revision = ++card.revision;
+  card.cover.dataset.status = "loading";
+  card.cover.setAttribute("aria-busy", "true");
+  card.image.src = coverSource(card.project);
+  try {
+    await card.image.decode();
+  } catch {
+    if (revision !== card.revision) return;
+    card.cover.dataset.status = "error";
+    card.cover.setAttribute("aria-busy", "false");
+    return;
+  }
+  if (revision !== card.revision) return;
+  card.cover.dataset.status = "ready";
+  card.cover.setAttribute("aria-busy", "false");
+}
+
 function showIndex(projects) {
   const cards = projects.map((project) => {
     const card = element("article", "project-card");
     const link = element("a", "project-card-link");
     link.href = asset("projects/" + project.id + "/");
+    link.addEventListener("pointerenter", () => warmProject(project));
+    link.addEventListener("focusin", () => warmProject(project));
+    link.addEventListener("pointerdown", () => warmProject(project), { passive: true });
     const cover = element("div", "project-cover");
     const coverScreen = element("div", "project-cover-screen");
     const coverContent = element("div", "project-cover-content");
     const image = element("img");
-    image.src = coverSource(project);
     image.alt = project.title + ", " + project.cover.format + " screenshot";
     image.loading = "eager";
+    image.decoding = "async";
     coverContent.append(image);
     coverScreen.append(coverContent);
     cover.append(coverScreen);
@@ -801,10 +910,13 @@ function showIndex(projects) {
     content.append(bottom);
     link.append(cover, content);
     card.append(link);
-    state.cards.push({ project, image });
+    const cardState = { project, image, cover, revision: 0 };
+    state.cards.push(cardState);
+    loadCover(cardState);
     return card;
   });
   document.querySelector("#project-grid").replaceChildren(...cards);
+  document.querySelector("#project-grid").setAttribute("aria-busy", "false");
 }
 
 const toggle = document.querySelector("#theme-toggle");
@@ -823,14 +935,17 @@ toggle.addEventListener("click", () => {
   updateThemeLabel();
   if (state.screenshots)
     selectScene(state.requestedScene || state.scene, false);
-  for (const card of state.cards)
-    card.image.src = coverSource(card.project);
+  for (const card of state.cards) loadCover(card);
 });
 updateThemeLabel();
 
 async function start() {
   try {
-    const projects = await loadJson("data/projects.json");
+    const projectId = document.body.dataset.project;
+    const [projects, screenshotData] = await Promise.all([
+      loadJson("data/projects.json"),
+      projectId ? loadJson("data/screenshots/" + projectId + ".json") : null,
+    ]);
     if (document.body.dataset.page === "index") {
       showIndex(projects);
       return;
@@ -839,9 +954,6 @@ async function start() {
       (item) => item.id === document.body.dataset.project,
     );
     if (!project) throw new Error("This project could not be found.");
-    const screenshotData = await loadJson(
-      "data/screenshots/" + project.id + ".json",
-    );
     showProject(project, screenshotData);
   } catch (error) {
     const container =

@@ -93,6 +93,10 @@ async function observeExpandedImages(page) {
         sourceHeight: image.naturalHeight,
         width: bounds.width,
         height: bounds.height,
+        screenWidth: this.querySelector(".expanded-image-region").getBoundingClientRect().width,
+        screenHeight: this.querySelector(".expanded-image-region").getBoundingClientRect().height,
+        title: this.querySelector("#expanded-title").textContent,
+        hasFrame: !!this.querySelector(this.dataset.format === "phone" ? ".phone-shell" : ".browser-shell"),
       });
     };
   });
@@ -361,7 +365,7 @@ test("mobile JSON captures scroll through the complete payload in the frame and 
   expect(bottom.top + bottom.visible).toBeGreaterThanOrEqual(bottom.content - 1);
 });
 
-test("image-only popups leave space, scroll, navigate by keyboard, and close outside or on Escape", async ({
+test("compact popups show a title, scroll, navigate by keyboard, and close outside or on Escape", async ({
   page,
 }, testInfo) => {
   await openProject(page);
@@ -380,16 +384,16 @@ test("image-only popups leave space, scroll, navigate by keyboard, and close out
     await expect(dialog).toBeVisible();
     await expect(dialog).toHaveAttribute("data-format", format);
     await expect(dialog).toHaveAttribute("data-scene", "summaries");
-    await expect(dialog.locator("button, a, header, h1, h2, p")).toHaveCount(0);
-    expect(
-      await dialog.evaluate((node) => getComputedStyle(node).borderTopWidth),
-    ).toBe("0px");
+    await expect(dialog.locator("#expanded-title")).toHaveText("Summaries");
+    await expect(dialog.locator("#expanded-context")).toContainText(format === "phone" ? "Phone" : "Desktop");
+    await expect(dialog.getByRole("button", { name: "Close expanded view" })).toBeVisible();
+    await expect(dialog.locator(".phone-shell, .browser-shell, .phone-status, .phone-home")).toHaveCount(0);
     const bounds = await dialog.boundingBox();
     const viewport = testInfo.project.use.viewport;
-    expect(bounds.x).toBeGreaterThan(viewport.width * 0.08);
-    expect(bounds.y).toBeGreaterThan(viewport.height * 0.08);
-    expect(bounds.x + bounds.width).toBeLessThan(viewport.width * 0.92);
-    expect(bounds.y + bounds.height).toBeLessThan(viewport.height * 0.92);
+    expect(bounds.x).toBeGreaterThan(viewport.width * 0.02);
+    expect(bounds.y).toBeGreaterThanOrEqual(7);
+    expect(bounds.x + bounds.width).toBeLessThan(viewport.width * 0.98);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height - 7);
     await page.locator("#expanded-image").evaluate((image) => image.decode());
     const pixels = await page.locator("#expanded-image").evaluate((image) => ({
       width: image.getBoundingClientRect().width,
@@ -400,6 +404,28 @@ test("image-only popups leave space, scroll, navigate by keyboard, and close out
     }));
     expect(pixels.source).toBe(format === "desktop" ? 4928 : 1560);
     expect(pixels.width).toBeGreaterThan(mainImage.width);
+    const desiredWidth = Math.floor(Math.min(
+      viewport.width * 0.94 - 2,
+      viewport.width - 70,
+      format === "phone" ? 560 : 1280,
+      pixels.source / (testInfo.project.use.deviceScaleFactor || 1),
+    ));
+    expect(pixels.width).toBeGreaterThanOrEqual(desiredWidth - 8);
+    expect(bounds.width - pixels.width).toBeLessThanOrEqual(10);
+    const header = await dialog.locator(".expanded-header").boundingBox();
+    const content = await dialog.locator(".expanded-image-region").boundingBox();
+    expect(content.y - bounds.y).toBeLessThanOrEqual(1);
+    expect(Math.abs(header.y - bounds.y)).toBeLessThanOrEqual(1);
+    const closeBounds = await dialog.locator("#close-expanded").boundingBox();
+    const titleBounds = await dialog.locator("#expanded-title").boundingBox();
+    expect(closeBounds.x).toBeGreaterThanOrEqual(content.x + content.width + 8);
+    expect(titleBounds.x).toBeGreaterThanOrEqual(content.x + content.width + 8);
+    expect(closeBounds.x + closeBounds.width).toBeLessThanOrEqual(viewport.width - 7);
+    expect(closeBounds.y).toBe(bounds.y);
+    expect(titleBounds.y).toBeGreaterThan(closeBounds.y + closeBounds.height);
+    expect(titleBounds.y + titleBounds.height).toBeLessThanOrEqual(content.y + content.height);
+    expect(await dialog.locator("#expanded-title").evaluate((node) => getComputedStyle(node).writingMode)).toBe("vertical-rl");
+    expect(await dialog.locator(".expanded-stage").evaluate((node) => getComputedStyle(node).borderTopLeftRadius)).toBe("8px");
     expect(pixels.source).toBeGreaterThanOrEqual(pixels.displayed);
     const region = page.locator(".expanded-image-region");
     if (
@@ -418,7 +444,7 @@ test("image-only popups leave space, scroll, navigate by keyboard, and close out
     if (format === "phone") {
       const file = testInfo.outputPath("expanded-phone.png");
       await page.screenshot({ path: file, animations: "disabled" });
-      await testInfo.attach("Image-only phone popup", {
+      await testInfo.attach("Compact phone popup", {
         path: file,
         contentType: "image/png",
       });
@@ -1023,19 +1049,13 @@ test("switching phone and desktop popups never exposes the previous image or siz
     expect(frame.complete).toBe(true);
     expect(frame.sourceWidth).toBe(originalWidth);
     expect(frame.src).toContain("/" + frame.format + "/");
-    const width = Math.floor(
-      Math.min(
-        viewport.width * 0.82,
-        frame.format === "phone" ? 460 : 1280,
-        originalWidth / ratio,
-      ),
-    );
-    const height = Math.min(
-      viewport.height * 0.82,
-      (width * frame.sourceHeight) / frame.sourceWidth,
-    );
-    expect(Math.abs(frame.width - width)).toBeLessThan(1);
-    expect(Math.abs(frame.height - height)).toBeLessThan(1);
+    expect(frame.width).toBeLessThanOrEqual(viewport.width * 0.94 + 1);
+    expect(frame.height).toBeLessThanOrEqual(viewport.height - 15);
+    expect(frame.screenWidth).toBeGreaterThan(0);
+    expect(frame.screenHeight).toBeGreaterThan(0);
+    expect(frame.screenWidth * ratio).toBeLessThanOrEqual(originalWidth);
+    expect(frame.title).toMatch(/Messages|Summaries/);
+    expect(frame.hasFrame).toBe(false);
   }
 });
 
@@ -1070,5 +1090,225 @@ test("Escape cancels an expanded image that is still decoding", async ({
     expect(await page.evaluate(() => window.expandedFrames.length)).toBe(0);
   } finally {
     release();
+  }
+});
+
+test("homepage covers fade in without loading labels or changing size", async ({ page }, testInfo) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  if (testInfo.project.name === "desktop-light")
+    await page.setViewportSize({ width: 1440, height: 600 });
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const theme = testInfo.project.use.colorScheme;
+  await page.route(new RegExp(`/${theme}/phone/outbound\\.png$`), async (route) => {
+    await gate;
+    await route.continue();
+  });
+  try {
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    const cover = page.locator('a[href$="/projects/sinair-llm-bot/"] .project-cover');
+    const image = cover.locator("img");
+    await expect(cover).toHaveAttribute("data-status", "loading");
+    await expect(page.getByText(/Loading projects|Loading preview/)).toHaveCount(0);
+    await expect(page.locator(".cover-status, .loading-message")).toHaveCount(0);
+    await expect(image).toHaveCSS("opacity", "0");
+    const before = await cover.boundingBox();
+    release();
+    await expect(cover).toHaveAttribute("data-status", "ready");
+    await expect(image).toHaveCSS("opacity", "1");
+    expect(await image.evaluate((node) => node.complete && node.naturalWidth > 0)).toBe(true);
+    expect(await cover.boundingBox()).toEqual(before);
+    await expect(image).toHaveCSS("transition-duration", "0.16s");
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect(image).toHaveCSS("transition-duration", "0s");
+  } finally {
+    release();
+  }
+});
+
+test("homepage cover state survives rapid theme switches and loading failures", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-light", "Shared cover loading state");
+  let release;
+  let finish;
+  let blocked = false;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const finished = new Promise((resolve) => { finish = resolve; });
+  await page.route(/\/dark\/phone\/outbound\.png$/, async (route) => {
+    blocked = true;
+    await gate;
+    await route.abort();
+    finish();
+  });
+  try {
+    await page.goto("/");
+    const cover = page.locator('a[href$="/projects/sinair-llm-bot/"] .project-cover');
+    const image = cover.locator("img");
+    const toggle = page.locator("#theme-toggle");
+    await expect(cover).toHaveAttribute("data-status", "ready");
+    await toggle.click();
+    await expect.poll(() => blocked).toBe(true);
+    await expect(cover).toHaveAttribute("data-status", "loading");
+    await toggle.click();
+    await expect(cover).toHaveAttribute("data-status", "ready");
+    release();
+    await finished;
+    await expect(image).toHaveAttribute("src", /\/light\/phone\/outbound\.png$/);
+    await expect(cover).toHaveAttribute("data-status", "ready");
+    await toggle.click();
+    await expect(cover).toHaveAttribute("data-status", "error");
+    await expect(cover.getByRole("status")).toHaveCount(0);
+    await expect(image).toHaveCSS("opacity", "0");
+    await expect(cover).toHaveAttribute("aria-busy", "false");
+    await toggle.click();
+    await expect(cover).toHaveAttribute("data-status", "ready");
+    await expect(image).toHaveCSS("opacity", "1");
+  } finally {
+    release();
+  }
+});
+
+test("card intent warms only the first preview pair for the active theme", async ({ page }, testInfo) => {
+  const requests = [];
+  page.on("request", (request) => {
+    if (/\/messages@\d+\.png$/.test(request.url())) requests.push(request.url());
+  });
+  await page.goto("/");
+  const link = page.locator('a[href$="/projects/sinair-llm-bot/"]');
+  await expect(link).toBeVisible();
+  expect(requests).toHaveLength(0);
+  await link.focus();
+  await expect.poll(() => requests.length).toBe(2);
+  const theme = testInfo.project.use.colorScheme;
+  expect(requests.some((url) => url.endsWith(`/${theme}/desktop/messages@1232.png`))).toBe(true);
+  expect(requests.some((url) => url.endsWith(`/${theme}/phone/messages@390.png`))).toBe(true);
+  await link.blur();
+  await link.focus();
+  await link.click();
+  await expect(page.locator("#project-views")).toHaveAttribute("aria-busy", "false");
+  await expectBothScenes(page, "messages");
+});
+
+test("data saving connections skip speculative screenshot downloads", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-light", "Shared connection policy");
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "connection", { value: { saveData: true, effectiveType: "4g" } });
+  });
+  const previews = [];
+  page.on("request", (request) => {
+    if (/\/data\/screenshots\//.test(request.url())) previews.push(request.url());
+  });
+  await page.goto("/");
+  const link = page.locator('a[href$="/projects/sinair-llm-bot/"]');
+  await link.focus();
+  await link.dispatchEvent("pointerenter");
+  await link.dispatchEvent("pointerdown");
+  expect(previews).toHaveLength(0);
+  await link.click();
+  await expect(page.locator("#project-views")).toHaveAttribute("aria-busy", "false");
+  await expectBothScenes(page, "messages");
+});
+
+test("the first pair is visible while sharper images are still loading", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-light", "Shared progressive loading behavior");
+  let release;
+  let blocked = false;
+  const gate = new Promise((resolve) => { release = resolve; });
+  await page.route(/\/light\/desktop\/messages@2464\.png$/, async (route) => {
+    blocked = true;
+    await gate;
+    await route.continue();
+  });
+  try {
+    await page.goto(projectPath);
+    await expect.poll(() => blocked).toBe(true);
+    await expectBothScenes(page, "messages");
+    for (const format of ["desktop", "phone"]) {
+      const image = page.locator(`.${format}-scroll > img`);
+      await expect(image).toBeVisible();
+      expect(await image.evaluate((node) => node.complete && node.naturalWidth > 0)).toBe(true);
+    }
+    await expect(page.locator(".desktop-scroll > img")).toHaveAttribute("src", /messages@1232\.png$/);
+    release();
+    await expect(page.locator("#project-views")).toHaveAttribute("aria-busy", "false");
+    await expect(page.locator(".desktop-scroll > img")).toHaveAttribute("src", /messages@2464\.png$/);
+  } finally {
+    release();
+  }
+});
+
+test("expanded chrome stays visible while scrolling and Close restores focus", async ({ page }) => {
+  await openProject(page);
+  for (const format of ["desktop", "phone"]) {
+    await chooseScene(page, "llm-payloads");
+    await expectBothScenes(page, "llm-payloads");
+    const trigger = page.locator(`.${format}-scroll`);
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+    const dialog = page.getByRole("dialog");
+    const close = dialog.getByRole("button", { name: "Close expanded view" });
+    await expect(close).toBeFocused();
+    const before = await close.boundingBox();
+    expect(before.width).toBeGreaterThanOrEqual(44);
+    expect(before.height).toBeGreaterThanOrEqual(44);
+    await dialog.locator(".expanded-image-region").evaluate((node) => { node.scrollTop = node.scrollHeight; });
+    await expect(dialog.locator("#expanded-title")).toHaveText("LLM JSON");
+    expect((await close.boundingBox()).y).toBe(before.y);
+    await page.keyboard.press("Tab");
+    await expect(dialog.locator(".expanded-image-region")).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(close).toBeFocused();
+    await close.click();
+    await expect(dialog).toBeHidden();
+    await expect(trigger).toBeFocused();
+  }
+});
+
+test("the side rail and title dismiss the viewer while screenshot clicks keep it open", async ({ page }) => {
+  await openProject(page);
+  const dialog = page.getByRole("dialog");
+  for (const format of ["desktop", "phone"]) {
+    const trigger = page.locator(`.${format}-scroll`);
+    for (const target of ["rail", "title"]) {
+      await trigger.focus();
+      await page.keyboard.press("Enter");
+      await expect(dialog).toBeVisible();
+      await dialog.locator(".expanded-image-region").click({ position: { x: 20, y: 20 } });
+      await expect(dialog).toBeVisible();
+      if (target === "rail") {
+        const rail = dialog.locator(".expanded-header");
+        const bounds = await rail.boundingBox();
+        await rail.click({ position: { x: 22, y: bounds.height - 10 } });
+      } else {
+        await dialog.locator("#expanded-title").click();
+      }
+      await expect(dialog).toBeHidden();
+      await expect(trigger).toBeFocused();
+    }
+  }
+});
+
+test("expanded screenshots keep their reading scale in shorter windows", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-light", "Shared expanded image sizing");
+  await openProject(page);
+  for (const format of ["desktop", "phone"]) {
+    const trigger = page.locator(`.${format}-scroll`);
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    const image = dialog.locator("img");
+    const before = await image.boundingBox();
+    await page.setViewportSize({ width: 1440, height: 600 });
+    await expect.poll(async () => (await dialog.boundingBox()).height).toBeLessThanOrEqual(600 - 15);
+    await expect.poll(async () => (await image.boundingBox()).width).toBe(before.width);
+    const region = dialog.locator(".expanded-image-region");
+    expect(await region.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
+    await expect(dialog.locator("#expanded-title")).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Close expanded view" })).toBeVisible();
+    const regionBounds = await region.boundingBox();
+    expect(regionBounds.height).toBeGreaterThanOrEqual(600 - 19);
+    await page.keyboard.press("Escape");
+    await page.setViewportSize(testInfo.project.use.viewport);
+    await expect(page.locator("#project-views")).toHaveAttribute("aria-busy", "false");
   }
 });
